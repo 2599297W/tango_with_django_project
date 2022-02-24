@@ -1,3 +1,5 @@
+from datetime import datetime
+from email.policy import default
 from http.client import CannotSendHeader
 from multiprocessing import context
 from unicodedata import category
@@ -12,6 +14,8 @@ from rango.forms import UserForm, UserProfileForm
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
+
+from datetime import datetime
 
 
 # Create your views here.
@@ -34,16 +38,32 @@ def index(request):
     context_dict['pages'] = page_list
     context_dict['extra'] = 'From the model solution on GitHub'
 
+    #obtain our response early so we can add cookie information
+    #cookie test
+    #request.session.set_test_cookie()
+    visitor_cookie_handler(request)
+
+    # context_dict['visits'] = int(request.COOKIES.get('visits', '1'))
+
     # Return a rendered response to send to the client.
     # We make use of the shortcut function to make our lives easier.
     # Note that the first parameter is the template we wish to use.
-    return render(request,'rango/index.html',context = context_dict)
+    return render(request, 'rango/index.html', context=context_dict)
 
 def about(request):
     # Construct a dictionary to pass to the template engine as its context.
     # Note the key boldmessage matches to {{ boldmessage }} in the template!
-    context_dict = {'boldmessage': 'This tutorial has been put together by Yunyi Wang'}
+    context_dict = {}
+    # context_dict['boldmessage'] = 'This tutorial has been put together by Yunyi Wang'
+    
+    visitor_cookie_handler(request)
+    context_dict['visits'] = request.session['visits']
 
+    # chookies test
+    # if request.session.test_cookie_worked():
+    #     print("TEST COOKIE WORKED!")
+    #     request.session.delete_test_cookie()
+    
     # Return a rendered response to send to the client.
     # We make use of the shortcut function to make our lives easier.
     # Note that the first parameter is the template we wish to use.
@@ -211,3 +231,34 @@ def restricted(request):
 def user_logout(request):
     logout(request)
     return redirect(reverse('rango:index'))
+
+def visitor_cookie_handler(request):
+    # get te number of visits to the site
+    # We use the COOKIES.get() function to obtain the visits cookie.
+    # If the cookie exists, the value returned is casted to an integer.
+    # If the cookie doesn't exist, then the default value of 1 is used.
+    visits = int(get_server_side_cookie(request, 'visits', '1'))
+
+    last_visit_cookie = get_server_side_cookie(request, 'last_visit', str(datetime.now()))
+    last_visit_time = datetime.strptime(last_visit_cookie[:-7], '%Y-%m-%d %H:%M:%S')
+
+    # if it's been more than a day since the last visit
+    if (datetime.now() - last_visit_time).days > 0:
+        visits = visits + 1
+        # update the last visit cookie nwe that we have updated the count
+        # response.set_cookie('last_visit', str(datetime.now()))
+        request.session['last_visit'] = str(datetime.now())
+    else:
+        # set the last visit cookie
+        # response.set_cookie('last_visit', last_visit_cookie)
+        request.session['last_visit'] = last_visit_cookie
+    
+    # updat the visits cookie
+    # response.set_cookie('visits', visits)
+    request.session['visits'] = visits
+
+def get_server_side_cookie(request, cookie, default_val=None):
+    val = request.session.get(cookie)
+    if not val:
+        val = default_val
+    return val
